@@ -1,37 +1,18 @@
-def leer_camion(rows):
-    camion=[]
-    rows = iter(rows)
-    headers=next(rows)
-    headers = headers.replace(',',' ')
-    headers = list(headers.split())
-    for n_row,row in enumerate(rows,start=1):
-        row =  row.split(',')
-        record=dict(zip(headers,row)) #Esto es para combinar el encabezado del archivo con los datos de cada fila.
-        try: #Aca lo que hago es asignarle las claves a cada valor
-            lote={'nombre':record['nombre'],'cajones':int(record['cajones']),'precio':float(record['precio'])}            
-            camion.append(lote) #por cada fila que recorra, se la agrega a la lista 'camion'
-        except ValueError:
-            print(f'Para la fruta: {row[0]}, falta un valor')
-    return camion
-    f.close()
+#informe.py
 
-#Aca llamo a la funcion, tomando el valor del archivo deseado
-#leer=leer_camion('Data/fecha_camion.csv')
-#print('Lectura:', leer)
-
-#Aca uso el record aunque no hace falta, podria no usarlo y en registro iria: registro={'nombre':fila[0],'cajones':int(fila[1]),'precio':float(fila[2])}. En realidad el record nos salva
-#para cuando necesito que mi funcion siga funcionando a pesar de que le pasaste un archivo con un formato de columnas completamente diferente al de antes, que no es el caso.   
-
-#%%
-#Aca arranca informe_funciones.py
-from fileparse_while_afuera import parse_csv
 import csv
+from fileparse import parse_csv
+import formato_tabla
+from lote import Lote
+from camion import Camion
+#%%
+
 def costo_camion(nombre_archivo):
     '''Computa el precio total del camion (cajones*precio) de un archivo'''
     suma=0
     f = open(nombre_archivo)
     rows=csv.reader(f)
-    headers=next(rows)
+    headers=next(f)
     for row in rows:
         try:
             suma=suma+int(row[1])*float(row[2])
@@ -41,110 +22,114 @@ def costo_camion(nombre_archivo):
     f.close()
 
 #%%
-
  
 def leer_camion(nombre_archivo):
-    # Computa todas las cosas que tiene el camion, la cantidad de cajones y su precio
+    ''' 
+    Computa todas las cosas que tiene el camion, la cantidad de cajones
+    y su precio
     
+    Pos: Devuelve una lista de instancias de la clase Lote, del modulo lote.py
     '''
-    camion=[]
-    f = open(nombre_archivo)
-    rows=csv.reader(f)
-    headers=next(f)
-    for row in rows:
-        try:
-            lote={'nombre':row[0],'cajones':int(row[1]),'precio':float(row[2])}
-            camion.append(lote)
-        except ValueError:
-            print(f'Para la fruta: {row[0]}, falta un valor')
-    '''
-    return parse_csv(nombre_archivo, types = [str, int, float])
-    f.close()
-
-
-
+    
+    with open(nombre_archivo) as rows: #Esto hay que hacerlo porque ahora estamos usando un 
+                                       #parse_csv que no posee el with open() adentro. Por 
+                                       #lo que hay que agregarlo c/vez que lo queramos usar.                            
+        camion_dicts = parse_csv(rows, types = [str, int, float])
+        camion_lote = [Lote(d['nombre'], d['cajones'], d['precio']) for d in camion_dicts]
+    return Camion(camion_lote)
 
 #%%
 
-
 def leer_precios(nombre_archivo):
-    # Computa todas las frutas que vende el local y a que precio
-    '''
-    precios={}
-    f=open(nombre_archivo)
-    rows=csv.reader(f)
-    for row in rows:
-        try:
-            A conitnuacion se va a agregar un valor a la biblioteca por c/loop 
-            precios[row[0]] = float(row[1])  #biblioteca_vacia['clave']=valor
-
-        except IndexError:
-            '''
-    return dict(parse_csv(nombre_archivo,types = [str,float], has_headers = False))
-    f.close()
-
-
+    ''' Computa todas las frutas que vende el local y a que precio'''
+    with open(nombre_archivo) as rows:
+        return dict(parse_csv(rows,types = [str,float], has_headers = False))
 
 #%%    
 
-def hacer_informe(nombre_archivo_camion, nombre_archivo_precios):
-    with open(nombre_archivo_camion) as file_camion:
-        camion = leer_camion(file_camion)
-    with open(nombre_archivo_precios) as file_precios:
-        precios = leer_precios(file_precios)
+def hacer_informe(camion, precios):
+    ''' 
+    Crea una lista de tuplas dada una lista de lotes en un camión
+    y un diccionario de precios nuevos.
+    '''
     lista = []
     for cam in camion:
         claves = precios.keys()
         for clave in claves:
-            if cam['nombre'] == clave:
-                tupla = (clave, cam['cajones'], cam['precio'], precios[clave] - cam['precio'])
+            if cam.nombre == clave:
+                tupla = (clave, cam.cajones, cam.precio, precios[clave] - cam.precio)
                 lista.append(tupla)
     return lista
-
-    
-#O tambien:
-
-#print('%10s %10s %10s %10s' % ('Nombre', 'Cajones', 'Precio', 'Cambio'))
-#print('---------- ---------- ---------- ----------')    
-#for nombre, cajones, precio, cambio in informe:
-#    print(f'{nombre:>10s} {cajones:>10d} {precio:>10.2f}$ {cambio:>10.2f}')
 
 #%%
 
 def balance(nombre_archivo_camion, nombre_archivo_precios):
-    with open(nombre_archivo_camion) as file_camion:
-        cosas_en_camion=leer_camion(file_camion) #a
-    with open(nombre_archivo_precios) as file_precios:
-        precio_posta=leer_precios(file_precios)
-    ganancia_bruta=0.0
+    ''' 
+    Calcula el balance del negocio, es decr, la diferencia entre lo que
+    costó el camion y lo que se recaudo con la venta.     
+    '''
+    cosas_en_camion = leer_camion(nombre_archivo_camion) #a
+    precio_posta = leer_precios(nombre_archivo_precios)
+    ganancia_bruta = 0.0
     for a in cosas_en_camion: #for para analizar las cosas en el camion
-            claves=precio_posta.keys()
+            claves = precio_posta.keys()
             for clave in claves: #for para leer todas las claves, que son las frutas del negocio
-                if a['nombre'] == clave: #if la fruta del camion coincide con la del negocio
-                    ganancia_bruta += precio_posta[clave]*a['cajones']
+                if a.nombre == clave: #if la fruta del camion coincide con la del negocio
+                    ganancia_bruta += precio_posta[clave]*a.cajones
     return ganancia_bruta
 
+#%%
 
-
-def informe_camion(nombre_archivo_camion, nombre_archivo_precios):
-    informe = hacer_informe(nombre_archivo_camion, nombre_archivo_precios)
-    print('%10s %10s %10s %10s' % ('Nombre', 'Cajones', 'Precio', 'Cambio'))
-    print('---------- ---------- ---------- ----------')
-    for r in informe:
-        print('%10s %10d %10.2f$ %10.2f$' % r)
-    #print(f'\nCosto del camion: {costo_camion(nombre_archivo_camion)} $')
-    #print(f'Ganancia bruta del negocio: {balance(nombre_archivo_camion, nombre_archivo_precios)} $')
-    ganancia_neta = balance(nombre_archivo_camion, nombre_archivo_precios)-costo_camion(nombre_archivo_camion)
-    #print(f'Ganancia neta del local: {ganancia_neta:.2f} $')
+def imprimir_informe(data_informe, formateador):
+    '''
+    Imprime una tabla a partir una lista de tuplas con (nombre, cajones, precio, cambio) 
+    '''
+    formateador.encabezado(['Nombre', 'Cajones', 'Precio', 'Cambio'])
+    #headers = ('Nombre', 'Cajones', 'Precio', 'Cambio')
+    #print('%10s %10s %10s %10s' % headers)
+    for nombre, cajones, precio, cambio in data_informe:
+        rowdata = [ nombre, str(cajones), f'{precio:0.2f}', f'{cambio:0.2f}' ]
+        formateador.fila(rowdata)
+    #for r in data_informe:
+        #print('%10s %10d %10.2f$ %10.2f$' % r)
     return None
 
-def main(lista):
-    nombre_archivo = lista[0]
-    nombre_archivo_camion = lista[1]
-    nombre_archivo_precios = lista[2]
-    return informe_camion(nombre_archivo_camion, nombre_archivo_precios)
+#%%
 
-if __name__ == '__main__':
-    main(['informe.py','Data/camion.csv', 'Data/precios.csv'])
+def informe_camion(archivo_camion, archivo_precios, fmt = 'txt'):        
+    '''
+    Crea un informe a partir de un archivo que posee la carga de un camión
+    y otro que posee los precios de venta. El formato predeterminado de
+    salida es txt.
+    Alternativas: csv o html.
+    '''
+    # Lee los archivos con datos
+    camion = leer_camion(archivo_camion)
+    precios = leer_precios(archivo_precios)
+
+    # Crea el informe con los datos de camion y precios
+    data_informe = hacer_informe(camion, precios)
+        
+    # Imprime el informe
+    formateador = formato_tabla.crear_formateador(fmt)
+    imprimir_informe(data_informe, formateador)
+
+
+#%%
+
+def main(argumentos):
+    if len(argumentos) not in {3,4}:
+        raise IndexError('Es necesario especificar: archivo_camion, archivo_precios, fmt(opcional)')
+    nombre_archivo_camion = argumentos[1]
+    nombre_archivo_precios = argumentos[2]
+    fmt = 'txt' #El formato predeterminado de salida es txt.
+    if len(argumentos) == 4:
+        fmt = argumentos[3]
+    return informe_camion(nombre_archivo_camion, nombre_archivo_precios, fmt)
+
+#%%
     
+if __name__ == '__main__':
+    import sys
+    main(sys.argv)
 
